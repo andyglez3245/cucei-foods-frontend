@@ -36,6 +36,13 @@ class MenuManager {
         });
     }
 
+    cleanMenuModal() {
+        this.menuContainer.innerHTML = "";
+        this.menuContainer.appendChild(this._createMenuRow());
+        this.imgInput.value = "";
+        this.imgPreview.classList.add("d-none");
+    }
+
     _createMenuRow() {
         const row = document.createElement("div");
         row.classList.add("d-flex", "gap-2", "align-items-center", "menu-row");
@@ -67,6 +74,7 @@ class MenuManager {
             "Mariscos",
             "Postre",
             "Bebidas",
+            "Snacks",
             "Otros"
         ];
 

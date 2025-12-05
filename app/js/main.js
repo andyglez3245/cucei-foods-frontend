@@ -9,8 +9,8 @@ const backendUrl = "https://cucei-foods-api-rigo.onrender.com";
 const client = new Client(backendUrl);
 
 // On local
-// const backendUrl = "http://localhost:5000";
-// const client = new Client(backendUrl);
+//const backendUrl = "http://localhost:5000";
+//const client = new Client(backendUrl);
 
 const sessionManager = new SessionManager(client);
 const menuManager = new MenuManager(client);

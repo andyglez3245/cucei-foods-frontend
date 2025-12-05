@@ -22,26 +22,59 @@ class PlaceManager {
     }
 
     _isPlaceOpen(schedule) {
+        // schedule expected like:
+        // { monday: { open: "08:00", close: "18:00" }, ... }
         if (!schedule) return false;
 
-        const days = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
-        const today = days[new Date().getDay()]; // 0 = Sunday
+        // Normalize schedule keys to lowercase for robustness
+        const normSchedule = {};
+        Object.keys(schedule).forEach(k => {
+            try {
+                normSchedule[String(k).toLowerCase()] = schedule[k];
+            } catch (e) {}
+        });
 
-        const todaySchedule = schedule[today];
+        // day names where getDay() 0 => sunday
+        const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+        const now = new Date();
+        const todayKey = dayNames[now.getDay()];
+
+        // get today's schedule (tolerate missing)
+        const todaySchedule = normSchedule[todayKey];
         if (!todaySchedule || !todaySchedule.open || !todaySchedule.close) return false;
 
-        const now = new Date();
+        // parse "HH:MM" (returns {h, m} or null)
+        const parseTime = (str) => {
+            if (!str || typeof str !== "string") return null;
+            const parts = str.split(":").map(s => parseInt(s, 10));
+            if (parts.length < 1 || Number.isNaN(parts[0])) return null;
+            return { h: parts[0], m: parts[1] || 0 };
+        };
 
-        const [openHour, openMin] = todaySchedule.open.split(":").map(Number);
-        const [closeHour, closeMin] = todaySchedule.close.split(":").map(Number);
+        const o = parseTime(todaySchedule.open);
+        const c = parseTime(todaySchedule.close);
+        if (!o || !c) return false;
 
+        // build Date objects for comparison
         const openTime = new Date(now);
-        openTime.setHours(openHour, openMin, 0, 0);
+        openTime.setHours(o.h, o.m, 0, 0);
 
         const closeTime = new Date(now);
-        closeTime.setHours(closeHour, closeMin, 0, 0);
+        closeTime.setHours(c.h, c.m, 0, 0);
 
-        return now >= openTime && now <= closeTime;
+        // If closeTime is <= openTime it means it closes next day (overnight)
+        if (closeTime.getTime() <= openTime.getTime()) {
+            // Case overnight: openTime ... 23:59 and 00:00 ... closeTime (next day)
+            // If now >= openTime (same day after opening) => open
+            if (now.getTime() >= openTime.getTime()) return true;
+            // Otherwise, consider closeTime as next day
+            const closeNextDay = new Date(closeTime);
+            closeNextDay.setDate(closeNextDay.getDate() + 1);
+            return now.getTime() <= closeNextDay.getTime();
+        }
+
+        // Normal case (same-day close)
+        return now.getTime() >= openTime.getTime() && now.getTime() <= closeTime.getTime();
     }
 
 
@@ -376,9 +409,9 @@ class PlaceManager {
         }
     }
 
-    // -----------------------------
-    // Create place (form -> backend)
-    // -----------------------------
+    // -------------
+    // Create place
+    // -------------
     async createPlace() {
         const name = document.getElementById("modal-local-name").value.trim();
         const categorySelect = document.getElementById("modal-local-category");
@@ -403,6 +436,7 @@ class PlaceManager {
             const response = await this.client.post("/api/places", formData);
             const data = await response.json();
             if (response.ok) {
+                this.menuManager.cleanMenuModal();
                 this.modalForm.reset();
                 this.modalInstance.hide();
                 alert("Local agregado correctamente!");
