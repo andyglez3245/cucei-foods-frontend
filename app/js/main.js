@@ -4,8 +4,14 @@ import { MenuManager } from "./MenuManager.js";
 import { CommentManager } from "./CommentManager.js";
 import { SessionManager } from "./SessionManager.js";
 
+// On server
 const backendUrl = "https://cucei-foods-api-rigo.onrender.com";
 const client = new Client(backendUrl);
+
+// On local
+// const backendUrl = "http://localhost:8080";
+// const client = new Client(backendUrl);
+
 const sessionManager = new SessionManager(client);
 const menuManager = new MenuManager(client);
 const commentManager = new CommentManager(client, sessionManager);
@@ -25,4 +31,3 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 });
-
