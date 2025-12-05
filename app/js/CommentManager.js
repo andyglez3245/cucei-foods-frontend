@@ -1,6 +1,7 @@
 class CommentManager {
-    constructor(client) {
+    constructor(client, sessionManager) {
         this.client = client;
+        this.sessionManager = sessionManager;
         this.selectedRating = 0;
 
         // Modal elements
@@ -48,7 +49,7 @@ class CommentManager {
         });
     }
 
-    _renderCommentItem(comment, rating) {
+    _renderCommentItem(user, comment, rating) {
         // Build stars
         let starsHTML = "";
         for (let i = 1; i <= 5; i++) {
@@ -66,7 +67,7 @@ class CommentManager {
 
                 <div class="flex-grow-1">
                     <div class="d-flex align-items-center gap-2">
-                        <strong>Tú</strong>
+                        <strong>${user}</strong>
                         <div class="text-warning small">${starsHTML}</div>
                     </div>
 
@@ -87,14 +88,14 @@ class CommentManager {
         try {
             const placeId = document.getElementById("modal-comments").dataset.placeId;
             const formData = new FormData();
-            formData.append("user_name", "Andrea");  // Placeholder user
-            formData.append("user_image", "images/default_user.png");
+            formData.append("user_id", this.sessionManager.userID);
             formData.append("text", text);
             formData.append("rating", this.selectedRating);
-            const response = await this.client.post(`/api/places/${placeId}/comments`, formData);
 
+            const response = await this.client.post(`/api/places/${placeId}/comments`, formData);
+            const userName = this.sessionManager.userName;
             if (response.ok) {
-                this._renderCommentItem(text, this.selectedRating);
+                this._renderCommentItem(userName, text, this.selectedRating);
                 alert("Commentario agregado correctamente!");
             } else {
                 alert("Error al agregar el comentario");
@@ -120,7 +121,7 @@ class CommentManager {
 
             // Populate comments in the modal
             comments.forEach(comment => {
-                this._renderCommentItem(comment.text, comment.rating);
+                this._renderCommentItem(comment.user_name, comment.text, comment.rating);
             });
         } catch (err) {
             console.error("Error fetching comments:", err);

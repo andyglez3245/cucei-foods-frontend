@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <script>
+        // Prevent back navigation after without logout
+        window.onpageshow = function(event) {
+            if (event.persisted) {
+                window.location.reload();
+            }
+        };
+        // If user is already logged in, redirect to app
+        if (sessionStorage.getItem("userID")) {
+            window.location.href = "../app/index.html";
+        }
+    </script>
+    <meta charset="utf-8">
+    <link rel="icon" type="image/x-icon" href="../images/Escudo_CUCEI.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso</title>
+    <link href="../style/bootstrap-5.3.8/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style/login.css" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container d-flex justify-content-center align-items-center vh-100">
+        <div class="card shadow col-12 col-md-5">
+
+            <!-- LOGIN FORM -->
+            <div id="login-form">
+                <h3 class="text-center mb-4">CUCEI Foods</h3>
+
+                <form>
+                    <div class="mb-3">
+                        <label class="form-label">Correo institucional</label>
+                        <input type="email" id="login-email" class="form-control" placeholder="tu@alumnos.udg.mx" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña</label>
+                        <input type="password" id="login-password" class="form-control" placeholder="********" required>
+                    </div>
+
+                    <button type="submit" id="login-btn" class="btn btn-primary w-100">Entrar</button>
+
+                    <div class="text-center mt-3">
+                        <a class="toggle-link" onclick="showRegister()">Crear cuenta</a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- REGISTER FORM -->
+            <div id="register-form" class="d-none">
+                <h3 class="text-center mb-4">Crear cuenta</h3>
+
+                <form>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" id="register-name" class="form-control" placeholder="Tu nombre" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Correo institucional</label>
+                        <input type="email" id="register-email" class="form-control" placeholder="tu@alumnos.udg.mx" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña</label>
+                        <input type="password" id="register-password" class="form-control" placeholder="********" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Confirmar contraseña</label>
+                        <input type="password" id="register-confirm" class="form-control" placeholder="********" required>
+                    </div>
+
+                    <button type="submit" id="register-btn" class="btn btn-success w-100">Crear cuenta</button>
+
+                    <div class="text-center mt-3">
+                        <a class="toggle-link" onclick="showLogin()">Ya tengo cuenta</a>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+    </div>
+    <script src="../style/bootstrap-5.3.8/js/bootstrap.bundle.min.js"></script>
+    <script src="js/utils.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
