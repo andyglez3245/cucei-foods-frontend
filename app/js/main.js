@@ -4,7 +4,7 @@ import { MenuManager } from "./MenuManager.js";
 import { CommentManager } from "./CommentManager.js";
 import { SessionManager } from "./SessionManager.js";
 
-const backendUrl = "http://localhost:5000";
+const backendUrl = "https://cucei-foods-api-rigo.onrender.com";
 const client = new Client(backendUrl);
 const sessionManager = new SessionManager(client);
 const menuManager = new MenuManager(client);
