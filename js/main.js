@@ -3,7 +3,7 @@ import { PlaceManager } from "./PlaceManager.js";
 import { MenuManager } from "./MenuManager.js";
 import { CommentManager } from "./CommentManager.js";
 
-const backendUrl = "http://localhost:5000";
+const backendUrl = "https://cucei-foods-api-rigo.onrender.com";
 const client = new Client(backendUrl);
 const menuManager = new MenuManager(client);
 const commentManager = new CommentManager(client);
