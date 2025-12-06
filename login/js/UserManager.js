@@ -1,8 +1,18 @@
+/**
+ * Maneja las acciones de inicio de sesión y registro desde la página de login.
+ */
 class UserManager {
+    /**
+     * @param {Client} client - Cliente HTTP para comunicarse con el backend.
+     */
     constructor(client) {
         this.client = client;
     }
 
+    /**
+     * Lee los campos del formulario de login y envía la petición al backend.
+     * Al recibir respuesta exitosa guarda `userID` y `userName` en sessionStorage.
+     */
     async login() {
         const formData = new FormData();
         const email = document.getElementById("login-email").value;
@@ -17,7 +27,7 @@ class UserManager {
             if (response.ok) {
                 sessionStorage.setItem('userID', data.user_id);
                 sessionStorage.setItem('userName', data.user_name);
-                window.location.href = '../app';
+                window.location.href = `../app/`;
             } else {
                 alert('Error al iniciar sesión: ' + data.message);
             }
@@ -27,6 +37,10 @@ class UserManager {
         }  
     }
 
+    /**
+     * Registra un nuevo usuario leyendo los campos del formulario y enviando
+     * la petición al backend. Valida que las contraseñas coincidan.
+     */
     async register() {
         const formData = new FormData();
 

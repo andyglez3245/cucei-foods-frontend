@@ -1,26 +1,44 @@
 // PlaceManager.js
+/**
+ * Gestor principal de locales. Se encarga de listar, crear, editar,
+ * eliminar locales y administrar la UI asociada (favoritos, horarios,
+ * menú y comentarios).
+ */
 class PlaceManager {
+    /**
+     * @param {Client} client - Cliente HTTP para comunicarse con el backend.
+     * @param {MenuManager} menuManager - Gestor de menús para manejar el modal de menú.
+     * @param {CommentManager} commentManager - Gestor de comentarios.
+     */
     constructor(client, menuManager, commentManager) {
         this.client = client;
         this.menuManager = menuManager;
         this.commentManager = commentManager;
 
-        // Modal elements
+        // Elementos del modal
         this.modalForm = document.getElementById("modal-form-add-local");
         this.modalInstance = new bootstrap.Modal(document.getElementById("modal-pull-right-add"));
 
-        // Container to render places
+        // Contenedor para renderizar locales
         this.placesContainer = document.getElementById("places-list");
         this.currentPlaces = [];
 
-        // Favorites
-        this.favorites = []; // store favorite places (array of place objects)
+        // Favoritos
+        this.favorites = []; // guarda objetos place
         this.favoritesContainer = document.querySelector("#favorites-list");
 
-        // Initialize nav click listeners
+        // Inicializar listeners de navegación y formulario
         this._initPlacesListeners();
     }
 
+    /**
+     * Determina si un local está abierto con base en su `schedule`.
+     * El schedule esperado es un objeto por día con `open` y `close` en formato "HH:MM".
+     * Soporta cierres que abarquen la medianoche.
+     * @param {Object|string} schedule - Objeto de horario o JSON-string.
+     * @returns {boolean} true si está abierto ahora, false en caso contrario.
+     * @private
+     */
     _isPlaceOpen(schedule) {
         // schedule expected like:
         // { monday: { open: "08:00", close: "18:00" }, ... }
@@ -81,6 +99,12 @@ class PlaceManager {
     // -----------------------------
     // Collect menu rows
     // -----------------------------
+    /**
+     * Recorre las filas de menú dentro del modal y construye el array de items.
+     * Cada item tiene: { dish_name, price, category }.
+     * @returns {Array<Object>} Arreglo de platillos válidos.
+     * @private
+     */
     _collectMenuItems() {
         const menuRows = document.querySelectorAll("#modal-menu-container .menu-row");
         const menu = [];
@@ -107,6 +131,11 @@ class PlaceManager {
     // -----------------------------
     // Collect schedule inputs
     // -----------------------------
+    /**
+     * Recolecta los inputs de horario del modal y los devuelve como objeto.
+     * @returns {Object} schedule - Ej: { monday: { open, close }, ... }
+     * @private
+     */
     _collectSchedule() {
         const openInputs = document.querySelectorAll(".schedule-open");
         const schedule = {};
@@ -125,6 +154,11 @@ class PlaceManager {
     // -----------------------------
     // Toggle favorite (UI + memory)
     // -----------------------------
+    /**
+     * Agrega o remueve un local de la lista local de favoritos y actualiza UI.
+     * @param {string|number} placeId - ID del local.
+     * @private
+     */
     _toggleFavorite(placeId) {
         // ensure same type comparison
         const pid = String(placeId);
@@ -156,6 +190,12 @@ class PlaceManager {
     // -----------------------------
     // Render helpers
     // -----------------------------
+    /**
+     * Devuelve HTML con iconos de estrellas según la calificación.
+     * @param {number} rating - Valor numérico de rating (puede ser decimal).
+     * @returns {string} HTML con iconos.
+     * @private
+     */
     _renderStars(rating = 0) {
         const fullStars = Math.floor(rating || 0);
         const halfStar = (rating % 1) >= 0.5;
@@ -201,6 +241,10 @@ class PlaceManager {
     // -----------------------------
     // Render favorites list
     // -----------------------------
+    /**
+     * Renderiza la lista de favoritos en la columna lateral.
+     * @private
+     */
     _renderFavorites() {
         if (!this.favoritesContainer) return;
         this.favoritesContainer.innerHTML = "";
@@ -230,6 +274,11 @@ class PlaceManager {
     // -----------------------------
     // Render places list (card)
     // -----------------------------
+    /**
+     * Renderiza la colección de `places` en la UI principal.
+     * @param {Array<Object>} places - Array de objetos con la info de cada local.
+     * @private
+     */
     _renderPlaces(places) {
         if (!this.placesContainer) return;
         this.placesContainer.innerHTML = "";
@@ -327,6 +376,12 @@ class PlaceManager {
     // -----------------------------
     // Attach event listeners for a single place div
     // -----------------------------
+    /**
+     * Añade listeners a los botones dentro de la tarjeta de un local.
+     * @param {HTMLElement} placeDiv - Elemento root del local.
+     * @param {Object} placeInfo - Objeto de datos del local.
+     * @private
+     */
     _attachEventListeners(placeDiv, placeInfo) {
         // delete
         placeDiv.querySelectorAll(".btn-delete").forEach(btn =>
@@ -395,6 +450,9 @@ class PlaceManager {
     // -----------------------------
     // Update nav counts from backend
     // -----------------------------
+    /**
+     * Actualiza los contadores de la barra lateral consultando al backend.
+     */
     async updateNavCounts() {
         try {
             const response = await this.client.get("/api/places/counts");
@@ -412,6 +470,9 @@ class PlaceManager {
     // -------------
     // Create place
     // -------------
+    /**
+     * Crea un nuevo local tomando los datos del modal y enviándolos al backend.
+     */
     async createPlace() {
         const name = document.getElementById("modal-local-name").value.trim();
         const categorySelect = document.getElementById("modal-local-category");
@@ -453,6 +514,9 @@ class PlaceManager {
     // -----------------------------
     // List places (with category filter)
     // -----------------------------
+    /**
+     * Consulta y lista locales aplicando el filtro de categoría activo.
+     */
     async listPlaces() {
         try {
             await this.updateNavCounts();
@@ -473,6 +537,10 @@ class PlaceManager {
     // -----------------------------
     // Delete place
     // -----------------------------
+    /**
+     * Elimina un local tras confirmación y refresca la lista.
+     * @param {string|number} placeId - ID del local a eliminar.
+     */
     async deletePlace(placeId) {
         if (!confirm("¿Seguro que deseas eliminar este local?")) return;
         try {
@@ -510,6 +578,11 @@ class PlaceManager {
     // -----------------------------
     // Edit place (open modal and populate) - placeholder
     // -----------------------------
+        /**
+         * Abre el modal de edición y debería popular los campos con los datos
+         * del local. Actualmente es un placeholder que imprime en consola.
+         * @param {string|number} placeId - ID del local a editar.
+         */
     editPlace(placeId) {
         const place = this.currentPlaces.find(p => String(p.id) === String(placeId));
         if (!place) return;
@@ -520,6 +593,10 @@ class PlaceManager {
     // -----------------------------
     // View comments (open modal and fetch comments)
     // -----------------------------
+        /**
+         * Abre el modal de comentarios y solicita la lista al CommentManager.
+         * @param {string|number} placeId - ID del local.
+         */
     async viewComments(placeId) {
         this.commentManager.listComments(placeId);
     }
