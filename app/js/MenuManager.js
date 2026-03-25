@@ -1,29 +1,40 @@
+/**
+ * Gestiona la UI relacionada con menús: filas dinámicas en el modal de creación
+ * y la visualización del menú en el modal de consulta.
+ */
 class MenuManager {
+    /**
+     * @param {Client} client - Cliente HTTP para posibles peticiones (no usado actualmente).
+     */
     constructor(client) {
         this.client = client;
 
-        // Menu modal elements
+        // Elementos del modal de menú
         this.menuContainer = document.getElementById("modal-menu-container");
         this.btnAddMenu = document.getElementById("modal-btn-add-menu");
 
         this.imgInput = document.getElementById("modal-local-image");
         this.imgPreview = document.getElementById("modal-image-preview");
 
-        // View menu modal elements
+        // Elementos del modal de visualización de menú
         this.viewMenuContent = document.getElementById("view-menu-content");
 
-        // Initialize with one menu row
+        // Inicializar controladores y añadir una fila inicial
         this._initMenuModalListeners();
         this.menuContainer.appendChild(this._createMenuRow());
     }
 
+    /**
+     * Inicializa listeners para agregar filas y previsualizar imagen.
+     * @private
+     */
     _initMenuModalListeners() {
-        // Add menu row
+        // Añadir fila de menú
         this.btnAddMenu.addEventListener("click", () => {
             this.menuContainer.appendChild(this._createMenuRow());
         });
 
-        // Image preview
+        // Previsualización de imagen al seleccionar archivo
         this.imgInput.addEventListener("change", () => {
             const file = this.imgInput.files[0];
             if (!file) {
@@ -36,6 +47,9 @@ class MenuManager {
         });
     }
 
+    /**
+     * Limpia el modal de menú dejándolo con una fila vacía y sin imagen.
+     */
     cleanMenuModal() {
         this.menuContainer.innerHTML = "";
         this.menuContainer.appendChild(this._createMenuRow());
@@ -43,6 +57,11 @@ class MenuManager {
         this.imgPreview.classList.add("d-none");
     }
 
+    /**
+     * Crea y devuelve una fila DOM para capturar un platillo, precio y categoría.
+     * @returns {HTMLDivElement} Elemento `.menu-row`.
+     * @private
+     */
     _createMenuRow() {
         const row = document.createElement("div");
         row.classList.add("d-flex", "gap-2", "align-items-center", "menu-row");
@@ -85,7 +104,7 @@ class MenuManager {
             selectCategory.appendChild(option);
         });
 
-        // Remove button
+        // Botón para remover la fila
         const btnRemove = document.createElement("button");
         btnRemove.type = "button";
         btnRemove.classList.add("btn", "btn-sm", "btn-outline-danger");
@@ -101,6 +120,11 @@ class MenuManager {
         return row;
     }
 
+    /**
+     * Renderiza un arreglo de objetos `menuArray` agrupando por categoría
+     * y creando una lista legible en `#view-menu-content`.
+     * @param {Array<Object>} menuArray - Array con items { dish_name, price, category }.
+     */
     loadMenu(menuArray) {
         this.viewMenuContent.innerHTML = ""; // clear old data
 

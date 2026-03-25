@@ -1,18 +1,31 @@
+/**
+ * Administra la lógica de comentarios y calificaciones dentro del modal.
+ * Se encarga de: escuchar eventos de estrellas, enviar comentarios al backend
+ * y renderear los comentarios en el modal.
+ */
 class CommentManager {
+    /**
+     * @param {Client} client - Instancia del cliente HTTP del proyecto.
+     * @param {SessionManager} sessionManager - Maneja sesión y datos de usuario.
+     */
     constructor(client, sessionManager) {
         this.client = client;
         this.sessionManager = sessionManager;
         this.selectedRating = 0;
 
-        // Modal elements
+        // Elementos del modal
         this.starRatingContainer = document.getElementById("modal-star-rating");
         this.btnSubmitComment = document.getElementById("btn-submit-comment");
         this.commentList = document.getElementById("comments-list");
 
-        // Initialize star rating listeners
+        // Inicializar listeners de estrellas y botón
         this._addEventListeners();
     }
 
+    /**
+     * Añade listeners a las estrellas y al botón de publicar comentario.
+     * @private
+     */
     _addEventListeners() {
         // STAR RATING INSIDE MODAL
         this.starRatingContainer.querySelectorAll(".star").forEach(star => {
@@ -40,6 +53,12 @@ class CommentManager {
         });
     }
 
+    /**
+     * Resalta las estrellas hasta `amount` con la clase indicada.
+     * @param {number} amount - Cantidad de estrellas a resaltar.
+     * @param {string} className - Clase CSS a aplicar (`hovered` o `selected`).
+     * @private
+     */
     _highlightStars(amount, className) {
         this.starRatingContainer.querySelectorAll(".star").forEach(star => {
             star.classList.remove("hovered", "selected");
@@ -49,6 +68,13 @@ class CommentManager {
         });
     }
 
+    /**
+     * Renderiza un elemento de comentario en el DOM del modal.
+     * @param {string} user - Nombre del usuario que comenta.
+     * @param {string} comment - Texto del comentario.
+     * @param {number} rating - Calificación (1-5).
+     * @private
+     */
     _renderCommentItem(user, comment, rating) {
         // Build stars
         let starsHTML = "";
@@ -79,6 +105,10 @@ class CommentManager {
         this.commentList.prepend(item);
     }
 
+    /**
+     * Recoge el comentario del textarea y lo envía al backend; luego lo renderiza.
+     * Valida que exista texto y una calificación.
+     */
     async addComment() {
         const input = document.getElementById("comment-input");
         const text = input.value.trim();
@@ -111,6 +141,10 @@ class CommentManager {
         this._highlightStars(0, "selected");
     }
 
+    /**
+     * Obtiene los comentarios del backend para un `placeId` y los muestra en el modal.
+     * @param {string|number} placeId - Identificador del local.
+     */
     async listComments(placeId) {
         // Clear existing comments
         this.commentList.innerHTML = "";

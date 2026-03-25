@@ -1,5 +1,12 @@
-// File to handle dynamic behaviors on the page
+/**
+ * Utilidades de comportamiento de la página para `app/`.
+ * Archivo ligero: contiene listeners globales de DOM.
+ */
 
+/**
+ * Handler que se ejecuta cuando el DOM está completamente cargado.
+ * Aquí se pueden inicializar comportamientos globales del frontend.
+ */
 document.addEventListener("DOMContentLoaded", () => {
-    // Code to run when the DOM is fully loaded
+    // Código para ejecutar cuando el DOM está listo
 });
