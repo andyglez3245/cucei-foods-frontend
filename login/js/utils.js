@@ -16,3 +16,5 @@ function showLogin() {
     document.getElementById("register-form").classList.add("d-none");
     document.getElementById("login-form").classList.remove("d-none");
 }
+
+export { showRegister, showLogin };
