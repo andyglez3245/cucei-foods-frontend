@@ -26,5 +26,6 @@ module.exports = {
     }
   },
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
-  collectCoverage: false
+  collectCoverage: true,
+  coverageReporters: ['lcov', 'text'],
 };
