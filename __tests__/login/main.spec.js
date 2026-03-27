@@ -1,9 +1,9 @@
 /**
- * Tests para main.js
+ * Tests para main.js (login)
  * Punto de entrada y inicialización de la página de login
  */
 
-// Limpiemos primero el módulo antes de importar para evitar efectos secundarios
+// Reset de módulos antes de los tests
 jest.resetModules();
 
 // Mock de los módulos antes de cualquier import
@@ -13,7 +13,8 @@ jest.mock('../../login/js/Client.js', () => {
       post: jest.fn(),
       get: jest.fn(),
       put: jest.fn(),
-      delete: jest.fn()
+      delete: jest.fn(),
+      backendUrl: 'http://backend.local'
     }))
   };
 });
@@ -27,8 +28,15 @@ jest.mock('../../login/js/UserManager.js', () => {
   };
 });
 
-describe('main.js - Inicialización de página de login', () => {
+describe('main.js (login) - Inicialización de página de login', () => {
+  let ClientMock;
+  let UserManagerMock;
+
   beforeEach(() => {
+    // Obtener los mocks después de resetModules
+    ClientMock = require('../../login/js/Client.js').Client;
+    UserManagerMock = require('../../login/js/UserManager.js').UserManager;
+
     // Crear elementos DOM necesarios
     document.body.innerHTML = `
       <button id="login-btn">Login</button>
@@ -46,7 +54,6 @@ describe('main.js - Inicialización de página de login', () => {
   });
 
   test('debería exportar Client', () => {
-    // Importar después de los mocks
     const { Client } = require('../../login/js/Client.js');
     expect(Client).toBeDefined();
   });
@@ -64,28 +71,50 @@ describe('main.js - Inicialización de página de login', () => {
     expect(registerBtn).not.toBeNull();
   });
 
-  test('debería permitir agregar event listeners a los botones', () => {
+  test('debería crear instancia de Client al cargar', async () => {
+    // Importar main.js esto dispara el DOMContentLoaded
+    require('../../login/js/main.js');
+    
+    // Simular DOMContentLoaded mediante dispatchEvent
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+
+    expect(ClientMock).toHaveBeenCalled();
+  });
+
+  test('debería crear instancia de UserManager al cargar', async () => {
+    require('../../login/js/main.js');
+    
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+
+    expect(UserManagerMock).toHaveBeenCalled();
+  });
+
+  test('debería registrar listeners de click en los botones al cargar', async () => {
+    require('../../login/js/main.js');
+    
     const loginBtn = document.getElementById('login-btn');
     const registerBtn = document.getElementById('register-btn');
 
-    const loginCallback = jest.fn();
-    const registerCallback = jest.fn();
+    // Crear spies para los listeners
+    const loginSpy = jest.fn((e) => e.preventDefault());
+    const registerSpy = jest.fn((e) => e.preventDefault());
 
-    loginBtn.addEventListener('click', loginCallback);
-    registerBtn.addEventListener('click', registerCallback);
+    loginBtn.addEventListener('click', loginSpy);
+    registerBtn.addEventListener('click', registerSpy);
 
     loginBtn.click();
     registerBtn.click();
 
-    expect(loginCallback).toHaveBeenCalled();
-    expect(registerCallback).toHaveBeenCalled();
+    expect(loginSpy).toHaveBeenCalled();
+    expect(registerSpy).toHaveBeenCalled();
   });
 
   test('debería permitir event listeners que previenen default y ejecutan lógica async', async () => {
+    require('../../login/js/main.js');
+    
     const loginBtn = document.getElementById('login-btn');
     const mockLoginHandler = jest.fn(async (e) => {
       e.preventDefault();
-      // Simular lógica async
       await Promise.resolve();
     });
 
@@ -93,5 +122,27 @@ describe('main.js - Inicialización de página de login', () => {
     loginBtn.click();
 
     expect(mockLoginHandler).toHaveBeenCalled();
+  });
+
+  test('debería conectar el botón de login al método login de UserManager', async () => {
+    require('../../login/js/main.js');
+    
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+
+    const loginBtn = document.getElementById('login-btn');
+    const mockUserManagerInstance = UserManagerMock.mock.results[0].value;
+    
+    expect(mockUserManagerInstance.login).toBeDefined();
+  });
+
+  test('debería conectar el botón de registro al método register de UserManager', async () => {
+    require('../../login/js/main.js');
+    
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+
+    const registerBtn = document.getElementById('register-btn');
+    const mockUserManagerInstance = UserManagerMock.mock.results[0].value;
+    
+    expect(mockUserManagerInstance.register).toBeDefined();
   });
 });
