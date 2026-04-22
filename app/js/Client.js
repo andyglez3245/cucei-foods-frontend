@@ -24,7 +24,15 @@ class Client {
      * @returns {Headers} - Objeto Headers combinado.
      */
     _getHeaders(customHeaders = {}) {
-        const headers = this.defaultHeaders;
+        // Clone default headers to avoid mutating the shared Headers instance
+        const headers = new Headers();
+        try {
+            for (const [k, v] of this.defaultHeaders.entries()) {
+                headers.append(k, v);
+            }
+        } catch (e) {
+            // If defaultHeaders is not iterable for some reason, ignore
+        }
         for (const key in customHeaders) {
             headers.append(key, customHeaders[key]);
         }
@@ -69,6 +77,49 @@ class Client {
             method: "PUT", 
             headers: this._getHeaders(), // Añadimos el header a los PUT
             body: formData 
+        });
+    }
+
+    /**
+     * Realiza una petición PUT enviando JSON con `application/json`.
+     * @param {string} endpoint
+     * @param {object} obj
+     * @returns {Promise<Response>}
+     */
+    async putJson(endpoint, obj) {
+        return await fetch(`${this.backendUrl}${endpoint}`, {
+            method: 'PUT',
+            headers: this._getHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(obj)
+        });
+    }
+
+    /**
+     * Realiza una petición POST enviando JSON con `application/json`.
+     * @param {string} endpoint
+     * @param {object} obj
+     * @returns {Promise<Response>}
+     */
+    async postJson(endpoint, obj) {
+        return await fetch(`${this.backendUrl}${endpoint}`, {
+            method: 'POST',
+            headers: this._getHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(obj)
+        });
+    }
+
+    /**
+     * Realiza una petición DELETE enviando JSON en el cuerpo con `application/json`.
+     * Algunos backends requieren el body para verificar usuario/credenciales.
+     * @param {string} endpoint
+     * @param {object} obj
+     * @returns {Promise<Response>}
+     */
+    async deleteJson(endpoint, obj) {
+        return await fetch(`${this.backendUrl}${endpoint}`, {
+            method: 'DELETE',
+            headers: this._getHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(obj)
         });
     }
 

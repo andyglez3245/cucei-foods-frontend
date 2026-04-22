@@ -58,6 +58,30 @@ class MenuManager {
     }
 
     /**
+     * Rellena el modal de menú con los items proporcionados.
+     * @param {Array<Object>} menuArray - Array con items { dish_name, price, category }.
+     */
+    populateMenuModal(menuArray) {
+        this.menuContainer.innerHTML = "";
+        if (!menuArray || !Array.isArray(menuArray) || menuArray.length === 0) {
+            this.menuContainer.appendChild(this._createMenuRow());
+            return;
+        }
+
+        menuArray.forEach(item => {
+            const row = this._createMenuRow();
+            const inputs = row.querySelectorAll('input, select');
+            // inputs order: text (dish), number (price), select (category)
+            if (inputs && inputs.length >= 3) {
+                try { inputs[0].value = item.dish_name || ''; } catch (e) {}
+                try { inputs[1].value = (typeof item.price !== 'undefined') ? item.price : ''; } catch (e) {}
+                try { inputs[2].value = item.category || inputs[2].options[0].value; } catch (e) {}
+            }
+            this.menuContainer.appendChild(row);
+        });
+    }
+
+    /**
      * Crea y devuelve una fila DOM para capturar un platillo, precio y categoría.
      * @returns {HTMLDivElement} Elemento `.menu-row`.
      * @private

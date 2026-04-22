@@ -6,8 +6,8 @@ import { Client } from './Client.js';
 import { UserManager } from './UserManager.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    //const backendUrl = "http://localhost:5000";
-    const backendUrl = "https://parapodial-floatingly-chong.ngrok-free.dev";
+    const backendUrl = "http://localhost:5000";
+    //const backendUrl = "https://parapodial-floatingly-chong.ngrok-free.dev";
     const client = new Client(backendUrl);
     const userManager = new UserManager(client)
 

@@ -10,14 +10,14 @@ import { CommentManager } from "./CommentManager.js";
 import { SessionManager } from "./SessionManager.js";
 
 
-const backendUrl = "https://parapodial-floatingly-chong.ngrok-free.dev"; // On server
-//const backendUrl = "http://localhost:5000"; // On local
+//const backendUrl = "https://parapodial-floatingly-chong.ngrok-free.dev"; // On server
+const backendUrl = "http://localhost:5000"; // On local
 const client = new Client(backendUrl);
 
 const sessionManager = new SessionManager(client);
 const menuManager = new MenuManager(client);
 const commentManager = new CommentManager(client, sessionManager);
-const placeManager = new PlaceManager(client, menuManager, commentManager);
+const placeManager = new PlaceManager(client, menuManager, commentManager, sessionManager);
 
 
 // Wait for the DOM to load before attaching event listeners

@@ -12,6 +12,9 @@ class CommentManager {
         this.client = client;
         this.sessionManager = sessionManager;
         this.selectedRating = 0;
+        this.userHasComment = false;
+        this.userCommentId = null;
+        this.currentPlaceId = null;
 
         // Elementos del modal
         this.starRatingContainer = document.getElementById("modal-star-rating");
@@ -75,7 +78,7 @@ class CommentManager {
      * @param {number} rating - Calificación (1-5).
      * @private
      */
-    _renderCommentItem(user, comment, rating) {
+    _renderCommentItem(user, comment, rating, meta = {}) {
         // Build stars
         let starsHTML = "";
         for (let i = 1; i <= 5; i++) {
@@ -86,7 +89,10 @@ class CommentManager {
         const item = document.createElement("div");
         item.className = "list-group-item";
 
-        // Final comment HTML
+        // If meta contains ownership info and it's the current user, render action buttons
+        const isOwner = meta.userId && (meta.userId === this.sessionManager.userID);
+
+        // Final comment HTML (include buttons for owner)
         item.innerHTML = `
             <div class="d-flex">
                 <img src="images/default_user.png" class="comment-user-image">
@@ -97,10 +103,99 @@ class CommentManager {
                         <div class="text-warning small">${starsHTML}</div>
                     </div>
 
-                    <p class="mt-2 mb-1">${comment}</p>
+                    <p class="mt-2 mb-1 comment-text">${comment}</p>
                 </div>
             </div>
         `;
+
+        // If the comment belongs to the current user, add Edit/Delete buttons
+        if (isOwner && meta.commentId) {
+            const actions = document.createElement('div');
+            actions.className = 'mt-2 d-flex gap-2';
+
+            const btnEdit = document.createElement('button');
+            btnEdit.className = 'btn btn-sm btn-outline-primary btn-edit-comment';
+            btnEdit.textContent = 'Editar';
+            btnEdit.dataset.commentId = meta.commentId;
+            btnEdit.dataset.userId = meta.userId;
+
+            const btnDelete = document.createElement('button');
+            btnDelete.className = 'btn btn-sm btn-outline-danger btn-delete-comment';
+            btnDelete.textContent = 'Eliminar';
+            btnDelete.dataset.commentId = meta.commentId;
+            btnDelete.dataset.userId = meta.userId;
+
+            actions.appendChild(btnEdit);
+            actions.appendChild(btnDelete);
+
+            // Append actions under the comment text
+            item.querySelector('.flex-grow-1').appendChild(actions);
+
+            // Attach listeners
+            btnEdit.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const commentId = btnEdit.dataset.commentId;
+                const currentTextEl = item.querySelector('.comment-text');
+                const currentText = currentTextEl.textContent.trim();
+
+                const newText = prompt('Edita tu comentario:', currentText);
+                if (newText === null) return; // user cancelled
+                const newRatingStr = prompt('Nueva calificación (1-5):', String(rating));
+                const newRating = parseInt(newRatingStr);
+                if (!newText.trim()) return alert('El comentario no puede estar vacío');
+                if (!(newRating >=1 && newRating <=5)) return alert('Rating inválido');
+
+                try {
+                    const payload = {
+                        user_id: this.sessionManager.userID,
+                        text: newText.trim(),
+                        rating: newRating
+                    };
+
+                    const resp = await this.client.putJson(`/api/comments/${commentId}`, payload);
+                    if (resp && resp.ok) {
+                        // update DOM: text and stars
+                        currentTextEl.textContent = newText.trim();
+                        const starsContainer = item.querySelector('.text-warning.small');
+                        let newStars = '';
+                        for (let i = 1; i <= 5; i++) {
+                            newStars += `<i class="bi ${i <= newRating ? 'bi-star-fill' : 'bi-star'} text-warning"></i>`;
+                        }
+                        starsContainer.innerHTML = newStars;
+                        alert('Comentario actualizado');
+                    } else {
+                        alert('Error al actualizar el comentario');
+                    }
+                } catch (err) {
+                    console.error('Error updating comment:', err);
+                    alert('Error al actualizar el comentario');
+                }
+            });
+
+            btnDelete.addEventListener('click', async (e) => {
+                e.preventDefault();
+                if (!confirm('¿Eliminar este comentario?')) return;
+                const commentId = btnDelete.dataset.commentId;
+                    try {
+                    const resp = await this.client.deleteJson(`/api/comments/${commentId}`, { user_id: this.sessionManager.userID });
+                    if (resp && resp.ok) {
+                        item.remove();
+                        // Allow user to post again
+                        if (this.userCommentId && String(this.userCommentId) === String(commentId)) {
+                            this.userHasComment = false;
+                            this.userCommentId = null;
+                            if (this.btnSubmitComment) this.btnSubmitComment.disabled = false;
+                        }
+                        alert('Comentario eliminado');
+                    } else {
+                        alert('Error al eliminar comentario');
+                    }
+                } catch (err) {
+                    console.error('Error deleting comment:', err);
+                    alert('Error al eliminar comentario');
+                }
+            });
+        }
 
         this.commentList.prepend(item);
     }
@@ -114,6 +209,7 @@ class CommentManager {
         const text = input.value.trim();
         if (!text) return;
         if (this.selectedRating === 0) return alert("Selecciona una calificación.");
+        if (this.userHasComment) return alert('Solo puedes dejar un comentario por local.');
         // Send to backend
         try {
             const placeId = document.getElementById("modal-comments").dataset.placeId;
@@ -125,8 +221,22 @@ class CommentManager {
             const response = await this.client.post(`/api/places/${placeId}/comments`, formData);
             const userName = this.sessionManager.userName;
             if (response.ok) {
-                this._renderCommentItem(userName, text, this.selectedRating);
-                alert("Commentario agregado correctamente!");
+                // Try to extract created comment id if backend returns it
+                let created = null;
+                if (response && typeof response.json === 'function') {
+                    try { created = await response.json(); } catch (e) { /* ignore */ }
+                }
+                const createdId = created && (created.id || created.comment_id) ? (created.id || created.comment_id) : null;
+                // Mark that user now has a comment for this place
+                if (createdId) {
+                    this.userHasComment = true;
+                    this.userCommentId = createdId;
+                    this.currentPlaceId = placeId;
+                    if (this.btnSubmitComment) this.btnSubmitComment.disabled = true;
+                }
+
+                this._renderCommentItem(userName, text, this.selectedRating, { commentId: createdId, userId: this.sessionManager.userID });
+                alert("Comentario agregado correctamente!");
             } else {
                 alert("Error al agregar el comentario");
             }
@@ -148,6 +258,9 @@ class CommentManager {
     async listComments(placeId) {
         // Clear existing comments
         this.commentList.innerHTML = "";
+        this.currentPlaceId = placeId;
+        this.userHasComment = false;
+        this.userCommentId = null;
 
         try {
             const resp = await this.client.get(`/api/places/${placeId}/comments`);
@@ -155,7 +268,17 @@ class CommentManager {
 
             // Populate comments in the modal
             comments.forEach(comment => {
-                this._renderCommentItem(comment.user_name, comment.text, comment.rating);
+                // comment may contain id or comment_id and user_id
+                const commentId = comment.id || comment.comment_id || null;
+                const userId = comment.user_id || comment.userId || null;
+                // If this comment is by current user, track it and disable submit
+                if (userId && String(userId) === String(this.sessionManager.userID)) {
+                    this.userHasComment = true;
+                    this.userCommentId = commentId;
+                    if (this.btnSubmitComment) this.btnSubmitComment.disabled = true;
+                }
+
+                this._renderCommentItem(comment.user_name, comment.text, comment.rating, { commentId: commentId, userId: userId });
             });
         } catch (err) {
             console.error("Error fetching comments:", err);

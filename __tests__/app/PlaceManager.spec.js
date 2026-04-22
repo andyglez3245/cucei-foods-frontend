@@ -10,6 +10,7 @@ describe('PlaceManager - Gestión de locales', () => {
   let mockClient;
   let mockMenuManager;
   let mockCommentManager;
+  let mockSessionManager;
 
   beforeEach(() => {
     // Mocks
@@ -28,6 +29,11 @@ describe('PlaceManager - Gestión de locales', () => {
 
     mockCommentManager = {
       listComments: jest.fn()
+    };
+
+    mockSessionManager = {
+      userID: 42,
+      userName: 'Tester'
     };
 
     // Mock de bootstrap.Modal
@@ -67,7 +73,7 @@ describe('PlaceManager - Gestión de locales', () => {
     global.alert = jest.fn();
     global.confirm = jest.fn(() => true);
 
-    placeManager = new PlaceManager(mockClient, mockMenuManager, mockCommentManager);
+    placeManager = new PlaceManager(mockClient, mockMenuManager, mockCommentManager, mockSessionManager);
     placeManager.currentPlaces = [];
     placeManager.favorites = [];
   });
@@ -82,6 +88,7 @@ describe('PlaceManager - Gestión de locales', () => {
       expect(placeManager.client).toBe(mockClient);
       expect(placeManager.menuManager).toBe(mockMenuManager);
       expect(placeManager.commentManager).toBe(mockCommentManager);
+      expect(placeManager.sessionManager).toBe(mockSessionManager);
     });
 
     test('debería encontrar elementos DOM', () => {

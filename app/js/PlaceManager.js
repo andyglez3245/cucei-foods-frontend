@@ -10,10 +10,11 @@ class PlaceManager {
      * @param {MenuManager} menuManager - Gestor de menús para manejar el modal de menú.
      * @param {CommentManager} commentManager - Gestor de comentarios.
      */
-    constructor(client, menuManager, commentManager) {
+    constructor(client, menuManager, commentManager, sessionManager) {
         this.client = client;
         this.menuManager = menuManager;
         this.commentManager = commentManager;
+        this.sessionManager = sessionManager;
 
         // Elementos del modal
         this.modalForm = document.getElementById("modal-form-add-local");
@@ -26,6 +27,10 @@ class PlaceManager {
         // Favoritos
         this.favorites = []; // guarda objetos place
         this.favoritesContainer = document.querySelector("#favorites-list");
+
+        // Search input
+        this.searchInput = document.getElementById("search-input");
+        this._searchTimeout = null;
 
         // Inicializar listeners de navegación y formulario
         this._initPlacesListeners();
@@ -159,7 +164,7 @@ class PlaceManager {
      * @param {string|number} placeId - ID del local.
      * @private
      */
-    _toggleFavorite(placeId) {
+    async _toggleFavorite(placeId) {
         // ensure same type comparison
         const pid = String(placeId);
         const place = this.currentPlaces.find(p => String(p.id) === pid);
@@ -168,23 +173,90 @@ class PlaceManager {
         const index = this.favorites.findIndex(p => String(p.id) === pid);
         const btnIcon = this.placesContainer.querySelector(`.btn-favorite[data-id="${pid}"] i`);
 
-        if (index === -1) {
-            // add
+        // Determine action: add if not present, remove if present
+        const adding = index === -1;
+
+        // Optimistic UI: reflect change immediately, but keep a copy to rollback
+        const prevFavorites = [...this.favorites];
+        if (adding) {
             this.favorites.push(place);
             if (btnIcon) {
                 btnIcon.classList.remove("bi-star");
                 btnIcon.classList.add("bi-star-fill", "text-warning");
             }
         } else {
-            // remove
             this.favorites.splice(index, 1);
             if (btnIcon) {
                 btnIcon.classList.remove("bi-star-fill", "text-warning");
                 btnIcon.classList.add("bi-star");
             }
         }
-
         this._renderFavorites();
+
+        // Persist to backend
+        const userId = (this.sessionManager && this.sessionManager.userID) ? this.sessionManager.userID : null;
+        if (!userId) return; // not logged in, nothing to persist
+
+        try {
+            if (adding) {
+                // Prefer sending JSON; some backends expect application/json
+                let resp = null;
+                try {
+                    resp = await this.client.postJson(`/api/places/${pid}/favorite`, { user_id: userId, place_id: pid });
+                } catch (e) {
+                    // fallback to FormData if network-level error
+                    console.warn('postJson failed, falling back to FormData', e);
+                    const fd = new FormData();
+                    fd.append('user_id', userId);
+                    resp = await this.client.post(`/api/places/${pid}/favorite`, fd);
+                }
+
+                if (!resp || !resp.ok) {
+                    // log body for debugging
+                    try {
+                        const text = resp ? await resp.text() : 'no-response';
+                        console.error('Favorite add failed', resp ? resp.status : 'no-resp', text);
+                    } catch (e) { console.error('Error reading failed response body', e); }
+                    // rollback
+                    this.favorites = prevFavorites;
+                    this._renderPlaces(this.currentPlaces);
+                    alert('Error al marcar favorito');
+                } else {
+                    // optional: update favorites with returned object
+                    try {
+                        const body = await resp.json();
+                        // if backend returned the saved place or favorite object, ensure it's in favorites
+                        if (body && (body.place || body.place_id || body.id)) {
+                            // noop - keeping optimistic UI
+                        }
+                    } catch (e) { /* ignore non-json */ }
+                }
+            } else {
+                // delete using JSON body to avoid Unsupported Media Type issues
+                let resp = null;
+                try {
+                    resp = await this.client.deleteJson(`/api/places/${pid}/favorite`, { user_id: userId, place_id: pid });
+                } catch (e) {
+                    console.warn('deleteJson failed, falling back to query param', e);
+                    resp = await this.client.delete(`/api/places/${pid}/favorite?user_id=${encodeURIComponent(userId)}`);
+                }
+
+                if (!resp || !resp.ok) {
+                    try {
+                        const text = resp ? await resp.text() : 'no-response';
+                        console.error('Favorite remove failed', resp ? resp.status : 'no-resp', text);
+                    } catch (e) { console.error('Error reading failed response body', e); }
+                    this.favorites = prevFavorites;
+                    this._renderPlaces(this.currentPlaces);
+                    alert('Error al remover favorito');
+                }
+            }
+        } catch (err) {
+            console.error('Error persisting favorite:', err);
+            this.favorites = prevFavorites;
+            this._renderPlaces(this.currentPlaces);
+            alert('Error de red al actualizar favorito');
+        }
     }
 
     // -----------------------------
@@ -418,9 +490,9 @@ class PlaceManager {
 
         // favorite toggle
         placeDiv.querySelectorAll(".btn-favorite").forEach(btn =>
-            btn.addEventListener("click", (e) => {
+            btn.addEventListener("click", async (e) => {
                 const id = e.currentTarget.dataset.id;
-                this._toggleFavorite(id);
+                await this._toggleFavorite(id);
             })
         );
     }
@@ -445,6 +517,74 @@ class PlaceManager {
         btnSave.addEventListener("click", async () => {
             await this.createPlace();
         });
+
+        // Search input listener (debounced) + Enter key and search button
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', (e) => {
+                const q = e.target.value;
+                if (this._searchTimeout) clearTimeout(this._searchTimeout);
+                this._searchTimeout = setTimeout(() => {
+                    this.searchPlaces(q);
+                }, 250);
+            });
+
+            this.searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    if (this._searchTimeout) { clearTimeout(this._searchTimeout); this._searchTimeout = null; }
+                    this.searchPlaces(e.target.value);
+                }
+            });
+        }
+
+        // Add New Local button: ensure modal is in "create" state
+        const btnAdd = document.querySelector('.btn-add-new-contact');
+        if (btnAdd) {
+            btnAdd.addEventListener('click', (e) => {
+                // reset modal title and form
+                const modalTitle = document.querySelector('#modal-pull-right-add .modal-title');
+                if (modalTitle) modalTitle.textContent = 'Agregar nuevo local';
+                if (this.modalForm) {
+                    delete this.modalForm.dataset.editId;
+                    this.modalForm.reset();
+                }
+                try { this.menuManager.cleanMenuModal(); } catch (err) {}
+                const imgPreview = document.getElementById('modal-image-preview');
+                if (imgPreview) imgPreview.classList.add('d-none');
+            });
+        }
+    }
+
+    /**
+     * Busca locales por texto. Si no hay texto muestra todos los locales.
+     * Realiza filtrado cliente sobre `this.currentPlaces` si ya están cargados,
+     * de lo contrario solicita la lista al backend y filtra.
+     * @param {string} query
+     */
+    async searchPlaces(query) {
+        const q = (query || "").trim().toLowerCase();
+
+        if (!q) {
+            // If we already have places, re-render them; otherwise fetch
+            if (this.currentPlaces && this.currentPlaces.length > 0) {
+                this._renderPlaces(this.currentPlaces);
+            } else {
+                await this.listPlaces();
+            }
+            return;
+        }
+
+        // Ensure we have places to filter
+        if (!this.currentPlaces || this.currentPlaces.length === 0) {
+            await this.listPlaces();
+        }
+
+        const filtered = (this.currentPlaces || []).filter(p => {
+            const name = (p.name || "").toString().toLowerCase();
+            const category = (p.category || "").toString().toLowerCase();
+            return name.includes(q) || category.includes(q);
+        });
+
+        this._renderPlaces(filtered);
     }
 
     // -----------------------------
@@ -494,6 +634,18 @@ class PlaceManager {
         formData.append("schedule", JSON.stringify(schedule));
 
         try {
+            // If form has data-edit-id then this is an update
+            const editId = this.modalForm ? this.modalForm.dataset.editId : null;
+            if (editId) {
+                await this.updatePlace(editId, formData);
+                // clear edit mode
+                delete this.modalForm.dataset.editId;
+                this.menuManager.cleanMenuModal();
+                this.modalForm.reset();
+                try { this.modalInstance.hide(); } catch (e) {}
+                return;
+            }
+
             const response = await this.client.post("/api/places", formData);
             const data = await response.json();
             if (response.ok) {
@@ -528,10 +680,48 @@ class PlaceManager {
             const response = await this.client.get(url);
             const places = await response.json();
             this.currentPlaces = places;
+            // Load user's favorites from backend (if logged in) before rendering
+            try { await this._loadFavorites(); } catch (e) { /* ignore */ }
             this._renderPlaces(places);
         } catch (err) {
             console.error("Error fetching places:", err);
         }
+    }
+
+    /**
+     * Carga la lista de favoritos del usuario desde el backend y mapea a `this.favorites`.
+     * Intenta endpoints comunes: `/api/users/:id/favorites` y `/api/favorites?user_id=`.
+     * @private
+     */
+    async _loadFavorites() {
+        // require session info
+        const userId = (this.sessionManager && this.sessionManager.userID) ? this.sessionManager.userID : null;
+        if (!userId) return;
+
+        let favs = null;
+        try {
+            const resp = await this.client.get(`/api/users/${userId}/favorites`);
+            if (!resp || !resp.ok) {
+                console.warn('No se pudo cargar favoritos');
+            };
+            favs = await resp.json();
+        } catch (e) {
+            console.error('Error cargando favoritos', e);
+        }
+
+        if (!favs) return;
+
+        // favs can be array of ids or array of place objects
+        const favIds = favs.map(f => (typeof f === 'object' ? (f.id || f.place_id || f.placeId) : f)).filter(Boolean).map(String);
+
+        // Map to place objects from currentPlaces when possible
+        this.favorites = (this.currentPlaces || []).filter(p => favIds.includes(String(p.id)));
+        // If none matched but favs are full place objects, use them
+        if (this.favorites.length === 0 && favs.length > 0 && typeof favs[0] === 'object') {
+            this.favorites = favs;
+        }
+
+        this._renderFavorites();
     }
 
     // -----------------------------
@@ -562,16 +752,47 @@ class PlaceManager {
     // -----------------------------
     async updatePlace(placeId, formData) {
         try {
-            const response = await this.client.put(`/api/places/${placeId}`, formData);
-            const data = await response.json();
-            if (response.ok) {
-                alert("Local actualizado");
+            // If formData includes a file under 'image', send multipart/form-data
+            let resp = null;
+            const maybeImage = formData instanceof FormData ? formData.get('image') : null;
+            if (maybeImage && maybeImage.size) {
+                resp = await this.client.put(`/api/places/${placeId}`, formData);
+            } else {
+                // convert FormData to plain object and send JSON
+                const obj = {};
+                if (formData && typeof formData.entries === 'function') {
+                    for (const [k, v] of formData.entries()) {
+                        // try parse JSON-like fields
+                        if (k === 'menu' || k === 'schedule') {
+                            try { obj[k] = JSON.parse(v); } catch (e) { obj[k] = v; }
+                        } else if (k === 'price' || k === 'cost') {
+                            obj[k] = Number(v);
+                        } else {
+                            obj[k] = v;
+                        }
+                    }
+                }
+
+                resp = await this.client.putJson(`/api/places/${placeId}`, obj);
+            }
+
+            if (!resp) throw new Error('No response from server');
+            let data = null;
+            try { data = await resp.json(); } catch (e) { data = null; }
+            if (resp.ok) {
+                alert('Local actualizado');
+                // cleanup modal and refresh
+                try { delete this.modalForm.dataset.editId; } catch (e) {}
+                try { this.menuManager.cleanMenuModal(); } catch (e) {}
+                try { this.modalForm.reset(); } catch (e) {}
+                try { this.modalInstance.hide(); } catch (e) {}
                 this.listPlaces();
             } else {
-                alert(data.error || "Error al actualizar");
+                alert((data && data.error) || 'Error al actualizar');
             }
         } catch (err) {
-            console.error(err);
+            console.error('Error updating place', err);
+            alert('Error de red al actualizar local');
         }
     }
 
@@ -586,8 +807,67 @@ class PlaceManager {
     editPlace(placeId) {
         const place = this.currentPlaces.find(p => String(p.id) === String(placeId));
         if (!place) return;
-        // TODO: populate modal fields with place data for editing
-        console.log("Editar lugar:", place);
+        // populate modal fields with place data for editing
+        const modalTitle = document.querySelector('#modal-pull-right-add .modal-title');
+        if (modalTitle) modalTitle.textContent = 'Editar local';
+
+        // set form values
+        if (this.modalForm) {
+            this.modalForm.dataset.editId = String(place.id);
+            const nameEl = document.getElementById('modal-local-name');
+            if (nameEl) nameEl.value = place.name || '';
+
+            const categoryEl = document.getElementById('modal-local-category');
+            if (categoryEl) {
+                try { categoryEl.value = place.category || categoryEl.options[0].value; } catch (e) {}
+            }
+
+            // schedule: fill inputs by data-day
+            try {
+                const schedule = (typeof place.schedule === 'string') ? JSON.parse(place.schedule) : (place.schedule || {});
+                document.querySelectorAll('.schedule-open').forEach(inp => {
+                    const day = inp.dataset.day;
+                    if (schedule && schedule[day] && schedule[day].open) inp.value = schedule[day].open;
+                });
+                document.querySelectorAll('.schedule-close').forEach(inp => {
+                    const day = inp.dataset.day;
+                    if (schedule && schedule[day] && schedule[day].close) inp.value = schedule[day].close;
+                });
+            } catch (e) { console.warn('Error parsing schedule for edit', e); }
+
+            // menu: use menuManager to populate modal rows
+            try {
+                if (this.menuManager && typeof this.menuManager.populateMenuModal === 'function') {
+                    this.menuManager.populateMenuModal(place.menu || []);
+                } else {
+                    console.error('menuManager.populateMenuModal is not a function', {
+                        menuManager: this.menuManager,
+                        proto: this.menuManager ? Object.getPrototypeOf(this.menuManager) : null
+                    });
+                    // fallback: clear menu container
+                    const menuContainer = document.getElementById('modal-menu-container');
+                    if (menuContainer) menuContainer.innerHTML = '';
+                }
+            } catch (e) { console.error('Error populating menu modal', e); }
+
+            // image preview (can't set file input programmatically)
+            try {
+                const imgPreview = document.getElementById('modal-image-preview');
+                if (imgPreview) {
+                    const src = place.image_url ? `${this.client.backendUrl}${place.image_url}` : '';
+                    if (src) {
+                        imgPreview.src = src;
+                        imgPreview.classList.remove('d-none');
+                    } else {
+                        imgPreview.src = '';
+                        imgPreview.classList.add('d-none');
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // show modal
+        try { this.modalInstance.show(); } catch (e) { console.warn('Could not show modal', e); }
     }
 
     // -----------------------------
