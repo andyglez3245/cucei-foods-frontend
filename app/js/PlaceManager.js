@@ -755,14 +755,16 @@ class PlaceManager {
             // If formData includes a file under 'image', send multipart/form-data
             let resp = null;
             const maybeImage = formData instanceof FormData ? formData.get('image') : null;
-            if (maybeImage && maybeImage.size) {
+            if (formData instanceof FormData) {
+                // always prefer sending FormData with PUT when caller provided it
+                resp = await this.client.put(`/api/places/${placeId}`, formData);
+            } else if (maybeImage && maybeImage.size) {
                 resp = await this.client.put(`/api/places/${placeId}`, formData);
             } else {
-                // convert FormData to plain object and send JSON
+                // fallback: convert plain object/FormData-like to JSON
                 const obj = {};
                 if (formData && typeof formData.entries === 'function') {
                     for (const [k, v] of formData.entries()) {
-                        // try parse JSON-like fields
                         if (k === 'menu' || k === 'schedule') {
                             try { obj[k] = JSON.parse(v); } catch (e) { obj[k] = v; }
                         } else if (k === 'price' || k === 'cost') {
@@ -771,6 +773,8 @@ class PlaceManager {
                             obj[k] = v;
                         }
                     }
+                } else if (formData && typeof formData === 'object') {
+                    Object.assign(obj, formData);
                 }
 
                 resp = await this.client.putJson(`/api/places/${placeId}`, obj);
@@ -807,6 +811,7 @@ class PlaceManager {
     editPlace(placeId) {
         const place = this.currentPlaces.find(p => String(p.id) === String(placeId));
         if (!place) return;
+        console.log('Editar lugar:', place);
         // populate modal fields with place data for editing
         const modalTitle = document.querySelector('#modal-pull-right-add .modal-title');
         if (modalTitle) modalTitle.textContent = 'Editar local';
